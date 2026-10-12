@@ -1,8 +1,8 @@
 /**
  * Fairy 灵魂注入（DeepSeek Harness 宿主插件）。
  *
- * 把一份外部 markdown「灵魂文件」注册成系统提示词的一个段落，让模型的**表达**长期
- * 保持为 Fairy 设定。
+ * 把随包发布的一份 markdown「灵魂文件」注册成系统提示词的一个段落，让模型的**表达**
+ * 长期保持为 Fairy 设定。
  *
  * 三个设计约束：
  *
@@ -15,9 +15,9 @@
  *     称呼与措辞；工具调用规范、安全边界、权限与审批、工作区指令全部照常生效。详见
  *     `docs/adr/0002-persona-overrides-voice-not-substrate.md`。
  *
- *  3. **自己读文件。** 不复用工作区指令加载链——用户全局指令文件名被硬编码，候选名
- *     配置只作用于项目目录链，且注入为 user 角色、人格力度弱。详见
- *     `docs/adr/0003-plugin-reads-soul-file-itself.md`。
+ *  3. **灵魂文件随包发布，相对包根定位。** 不依赖任何机器的目录结构，因此插件装到
+ *     任何位置都自洽、"安装即用、人人一致"。详见
+ *     `docs/adr/0004-package-the-soul-file-with-the-plugin.md`。
  *
  * 容错原则：任何异常都不注册失败、不抛错。灵魂文件读不到时段落文本为空串，而空段落
  * 会被组装流程直接丢弃，因此退化成"没有本插件"而不是"请求失败"。
@@ -28,10 +28,17 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { LOG_NAME, SECTION_NAME, normalizeConfig } from './lib/config.js'
+import { LOG_NAME, PACKAGED_SOUL_FILENAME, SECTION_NAME, normalizeConfig } from './lib/config.js'
 import { createSoulSource, resolveSoulPath } from './lib/soul.js'
 
-export { SECTION_NAME, LOG_NAME, DEFAULT_ORDER, DEFAULT_CONFIG, normalizeConfig } from './lib/config.js'
+export {
+  SECTION_NAME,
+  LOG_NAME,
+  DEFAULT_ORDER,
+  DEFAULT_CONFIG,
+  PACKAGED_SOUL_FILENAME,
+  normalizeConfig,
+} from './lib/config.js'
 export { createSoulSource, prepareSoul, resolveSoulPath, stripFrontmatter } from './lib/soul.js'
 
 /** Cordis 插件名。 */
@@ -40,8 +47,16 @@ export const name = 'fairy-soul'
 /** 需要的服务：没有 `systemPrompt` 的 profile 里本插件保持未激活而不是抛错。 */
 export const inject = ['systemPrompt']
 
-/** 包根目录，用于定位包内兜底灵魂文件。`index.js` 就在包根，取一层 dirname 即可。 */
+/** 包根目录。`index.js` 就在包根，取一层 dirname 即可。 */
 const PACKAGE_ROOT = dirname(fileURLToPath(import.meta.url))
+
+/**
+ * 随包发布的灵魂文件路径。
+ *
+ * 这是**默认**人格来源，相对包根解析——所以插件装到任何位置都自洽，开发工作区被删除
+ * 之后也照常工作，而且每个安装实例拿到的都是同一份人格，不需要任何逐机配置。
+ */
+export const PACKAGED_SOUL_PATH = join(PACKAGE_ROOT, PACKAGED_SOUL_FILENAME)
 
 /**
  * 各语言的划界声明。
@@ -98,12 +113,15 @@ export function apply(ctx, config) {
     return
   }
 
-  const soulPath = resolveSoulPath(settings.soulPath)
-  const fallbackPath = join(PACKAGE_ROOT, 'soul.default.md')
+  // 人格来源的优先级：
+  //   1. 配置里的外部路径 —— 仅当你显式想用随包那份**之外**的人格文件时才存在
+  //   2. 随包发布的 FairySOUL.md —— **默认**，也是"安装即用、人人一致"的实现
+  // 两者都读不到时段落为空串，被组装流程丢弃：退化成"没有本插件"而不是请求失败。
+  const externalPath = settings.soulPath.length > 0 ? resolveSoulPath(settings.soulPath) : undefined
   const readSoul = createSoulSource(
     {
-      soulPath,
-      fallbackPath,
+      soulPath: externalPath ?? PACKAGED_SOUL_PATH,
+      fallbackPath: externalPath === undefined ? undefined : PACKAGED_SOUL_PATH,
       annotateContinuity: settings.annotateContinuity,
       language: settings.language,
     },
@@ -124,5 +142,6 @@ export function apply(ctx, config) {
     'fairySoul.section()',
   )
 
-  logger.info(`armed (soulPath=${soulPath}, order=${settings.order}, language=${settings.language})`)
+  const source = externalPath === undefined ? `packaged:${PACKAGED_SOUL_PATH}` : `external:${externalPath}`
+  logger.info(`armed (soul=${source}, order=${settings.order}, language=${settings.language})`)
 }

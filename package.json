@@ -1,17 +1,29 @@
 {
   "name": "dsh-fairy-soul",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
-  "description": "Inject an external markdown soul file as a DeepSeek Harness system-prompt persona section, overriding how the agent speaks without touching its tools, safety rules, or workspace instructions.",
+  "description": "Inject a packaged markdown soul file as a DeepSeek Harness system-prompt persona section, overriding how the agent speaks without touching its tools, safety rules, or workspace instructions.",
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
+    "deepseek",
     "persona",
     "system-prompt",
     "fairy"
   ],
   "license": "MIT",
+  "author": "longge1213812138",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/longge1213812138/dsh-fairy-soul.git"
+  },
+  "homepage": "https://github.com/longge1213812138/dsh-fairy-soul#readme",
+  "bugs": {
+    "url": "https://github.com/longge1213812138/dsh-fairy-soul/issues"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
   "exports": {
     ".": "./index.js",
     "./package.json": "./package.json"
@@ -19,13 +31,15 @@
   "files": [
     "index.js",
     "lib",
-    "soul.default.md",
+    "FairySOUL.md",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "test": "node --test --experimental-test-isolation=none",
-    "verify": "node verify/harness.mjs && node verify/install-check.mjs && node verify/render.mjs"
+    "verify": "node verify/dead-code.mjs && node verify/harness.mjs && node verify/install-check.mjs && node verify/render.mjs",
+    "check": "npm run test && npm run verify"
   },
   "dsh": {
     "bundle": {
@@ -34,6 +48,6 @@
   },
   "meta": {
     "title": "Fairy 灵魂注入",
-    "description": "把 FairySOUL.md 注入系统提示词，让输出风格长期保持为 Fairy 设定。"
+    "description": "把随包发布的 FairySOUL.md 注入系统提示词，让输出风格长期保持为 Fairy 设定。"
   }
 }

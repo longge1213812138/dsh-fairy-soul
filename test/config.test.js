@@ -15,12 +15,17 @@ describe('normalizeConfig', () => {
     for (const empty of [undefined, null, {}, 'x', 42]) {
       assert.deepEqual(normalizeConfig(empty), {
         enabled: true,
-        soulPath: DEFAULT_CONFIG.soulPath,
+        soulPath: '',
         language: 'zh',
         annotateContinuity: true,
         order: DEFAULT_ORDER,
       })
     }
+  })
+
+  it('默认 soulPath 为空串，表示使用随包发布的那份灵魂文件', () => {
+    assert.equal(DEFAULT_CONFIG.soulPath, '')
+    assert.equal(normalizeConfig({}).soulPath, '')
   })
 
   it('只有显式 false 才关闭开关', () => {
@@ -34,8 +39,16 @@ describe('normalizeConfig', () => {
     assert.equal(normalizeConfig({ soulPath: '  ~/x.md  ' }).soulPath, '~/x.md')
   })
 
-  it('空白路径回落到默认值', () => {
-    assert.equal(normalizeConfig({ soulPath: '   ' }).soulPath, DEFAULT_CONFIG.soulPath)
+  it('清空 soulPath 是有效操作：回到随包版本，而不是回落到某个默认路径', () => {
+    assert.equal(normalizeConfig({ soulPath: '/some/external.md' }).soulPath, '/some/external.md')
+    assert.equal(normalizeConfig({ soulPath: '' }).soulPath, '')
+    assert.equal(normalizeConfig({ soulPath: '   ' }).soulPath, '')
+  })
+
+  it('非字符串的 soulPath 回落到空串（即随包版本）', () => {
+    for (const bad of [null, 42, {}, []]) {
+      assert.equal(normalizeConfig({ soulPath: bad }).soulPath, '')
+    }
   })
 
   it('只接受 zh 与 en 作为语言', () => {

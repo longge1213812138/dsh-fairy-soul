@@ -13,12 +13,12 @@
  */
 
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { dirname, join, sep } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { apply, inject, name, SECTION_NAME } from '../index.js'
+import { PACKAGED_SOUL_PATH, apply, inject, name, SECTION_NAME } from '../index.js'
 
 /** DSH `dsh-system-prompt` 的 SECTION_ORDERS 全表（用于校验我们的排序位置）。 */
 const SECTION_ORDERS = {
@@ -183,25 +183,102 @@ console.log('\n热重载')
   })
 }
 
+// ── 随包灵魂文件：默认人格来源 ──────────────────────────────────────────
+console.log('\n随包灵魂文件（默认人格来源）')
+{
+  const host = fakeHost()
+  apply(host.ctx, {})
+  const section = host.registered[0]
+  check('默认配置（soulPath 留空）也能注入人格', () => {
+    const text = section.text({})
+    assert.match(text, /Fairy/, '应注入随包 FairySOUL.md 的内容')
+    assert.match(text, /主人/, '应含称呼设定')
+  })
+  check('默认来源是包内的 FairySOUL.md，而非某个外部绝对路径', () => {
+    const armed = host.logs.find(([level, msg]) => level === 'info' && String(msg).startsWith('armed'))
+    assert.ok(armed !== undefined, '应打印 armed 日志')
+    const message = String(armed[1])
+    assert.match(message, /soul=packaged:/, '应标注为随包来源')
+    assert.ok(message.includes(PACKAGED_SOUL_PATH), `日志里应出现 ${PACKAGED_SOUL_PATH}`)
+  })
+}
+check('随包 FairySOUL.md 确实存在且含 Fairy 设定', async () => {
+  const { readFileSync } = await import('node:fs')
+  const soul = readFileSync(PACKAGED_SOUL_PATH, 'utf8')
+  assert.match(soul, /Fairy/)
+  assert.match(soul, /称用户为"主人"/)
+})
+check('随包 FairySOUL.md 路径落在包根之内（可发布、可移植）', () => {
+  assert.ok(
+    PACKAGED_SOUL_PATH.startsWith(PACKAGE_ROOT),
+    `${PACKAGED_SOUL_PATH} 应在 ${PACKAGE_ROOT} 之内`,
+  )
+  assert.equal(PACKAGED_SOUL_PATH, join(PACKAGE_ROOT, 'FairySOUL.md'))
+})
+
+// ── 脱离工作区工作（发布/搬迁后的核心保证） ─────────────────────────────
+console.log('\n脱离开发工作区（复制到别处后必须照常工作）')
+{
+  // 把包完整复制到一个临时目录，模拟"用户从 GitHub 装下来、原工作区已删除"。
+  const { cpSync, readFileSync, rmSync: rm } = await import('node:fs')
+  const staging = mkdtempSync(join(tmpdir(), 'fairy-detached-'))
+  created.push(staging)
+  cpSync(PACKAGE_ROOT, join(staging, 'dsh-fairy-soul'), {
+    recursive: true,
+    filter: (src) => !src.includes(`${sep}.git${sep}`) && !src.includes(`${sep}node_modules${sep}`),
+  })
+  const detachedRoot = join(staging, 'dsh-fairy-soul')
+
+  check('复制出来的是完整可运行包（含 FairySOUL.md 与 patch）', () => {
+    for (const file of ['package.json', 'index.js', 'cordis.patch.yml', 'FairySOUL.md']) {
+      const path = join(detachedRoot, file)
+      if (!existsSync(path)) throw new Error(`缺少 ${file}`)
+    }
+    return `${detachedRoot}`
+  })
+
+  // 从副本目录导入并运行——证明模块不依赖原工作区。
+  const detached = await import(pathToFileURL(join(detachedRoot, 'index.js')).href)
+  const host = fakeHost()
+  detached.apply(host.ctx, {})
+  check('从副本运行时，人格来源指向副本自己（而非原工作区）', () => {
+    const text = host.registered[0].text({})
+    assert.match(text, /Fairy/)
+    const armed = host.logs.find(([level, msg]) => level === 'info' && String(msg).startsWith('armed'))
+    const message = String(armed[1])
+    assert.ok(message.includes(detachedRoot), '日志里应出现副本路径')
+    assert.ok(!message.includes(PACKAGE_ROOT), '不应再引用原工作区路径')
+  })
+
+  check('副本不引用任何硬编码的开发者绝对路径', () => {
+    for (const file of ['index.js', 'lib/config.js', 'lib/soul.js']) {
+      const text = readFileSync(join(detachedRoot, file), 'utf8')
+      if (/91533|Desktop[\\/]Fairy/i.test(text)) {
+        throw new Error(`${file} 里残留硬编码的开发者路径`)
+      }
+    }
+  })
+
+  // 删掉副本里的 FairySOUL.md 也不应崩：段落退化成空串。
+  rm(join(detachedRoot, 'FairySOUL.md'), { force: true })
+  const host2 = fakeHost()
+  detached.apply(host2.ctx, {})
+  check('副本缺少 FairySOUL.md 时退化为空段落，而不是抛错', () => {
+    assert.equal(host2.registered[0].text({}), '')
+  })
+}
+
 // ── 容错 ────────────────────────────────────────────────────────────────
 console.log('\n容错（人格读取失败不得让请求失败）')
 {
   const host = fakeHost()
   apply(host.ctx, { soulPath: join(PACKAGE_ROOT, 'no', 'such', 'file.md'), language: 'zh' })
   const section = host.registered[0]
-  check('主路径缺失时回落到包内 soul.default.md', () => {
+  check('外部路径缺失时回落到随包 FairySOUL.md', () => {
     assert.match(section.text({}), /Fairy/)
   })
   check('回落时留下一条 warn 日志', () => {
     assert.ok(host.logs.some(([level, msg]) => level === 'warn' && /cannot read/.test(String(msg))))
-  })
-}
-{
-  const host = fakeHost()
-  apply(host.ctx, { soulPath: join(PACKAGE_ROOT, 'no.md'), fallbackPath: join(PACKAGE_ROOT, 'no2.md') })
-  const section = host.registered[0]
-  check('配置路径与自定兜底都不可读时，仍回落到包内 soul.default.md', () => {
-    assert.match(section.text({}), /Fairy/)
   })
 }
 {
@@ -224,12 +301,6 @@ console.log('\n容错（人格读取失败不得让请求失败）')
     assert.ok(host.logs.some(([, msg]) => /disabled/.test(String(msg))))
   })
 }
-check('包内兜底灵魂文件确实存在且含 Fairy 设定', async () => {
-  const { readFileSync } = await import('node:fs')
-  const fallback = readFileSync(join(PACKAGE_ROOT, 'soul.default.md'), 'utf8')
-  assert.match(fallback, /Fairy/)
-  assert.match(fallback, /称用户为"主人"/)
-})
 
 console.log(`\n${results.join('\n')}\n`)
 for (const dir of created) rmSync(dir, { recursive: true, force: true })

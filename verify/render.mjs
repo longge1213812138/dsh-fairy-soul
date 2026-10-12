@@ -13,7 +13,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { apply } from '../index.js'
+import { apply, PACKAGED_SOUL_PATH } from '../index.js'
 import { normalizeConfig } from '../lib/config.js'
 import { resolveSoulPath } from '../lib/soul.js'
 
@@ -69,9 +69,14 @@ const settings = normalizeConfig(rawConfig)
 console.log(`配置来源   : ${rawConfig === undefined ? '默认值（patch 里没有 fairy-soul 行）' : patchPath}`)
 console.log(`原始配置   : ${JSON.stringify(rawConfig ?? {})}`)
 console.log(`归一化配置 : enabled=${settings.enabled} language=${settings.language} order=${settings.order} annotateContinuity=${settings.annotateContinuity}`)
-console.log(`soulPath   : ${settings.soulPath}`)
-console.log(`解析结果   : ${resolveSoulPath(settings.soulPath)}`)
-console.log(`文件存在   : ${existsSync(resolveSoulPath(settings.soulPath))}`)
+
+const usingPackaged = settings.soulPath.length === 0
+const effectiveSoul = usingPackaged ? PACKAGED_SOUL_PATH : resolveSoulPath(settings.soulPath)
+
+console.log(`人格来源   : ${usingPackaged ? `随包发布（soulPath 留空）` : `外部路径（soulPath 已设置）`}`)
+console.log(`soulPath   : ${settings.soulPath === '' ? "(空串)" : settings.soulPath}`)
+console.log(`实际文件   : ${effectiveSoul}`)
+console.log(`文件存在   : ${existsSync(effectiveSoul)}`)
 
 // 用真实配置跑真实的 apply()。
 const registered = []

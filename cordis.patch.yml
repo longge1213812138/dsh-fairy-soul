@@ -1,20 +1,25 @@
-# Fairy 灵魂注入 —— 把外部 markdown 人格文件注册成系统提示词段落。
+# Fairy 灵魂注入 —— 把随包发布的 FairySOUL.md 注册成系统提示词段落。
 #
 # 零依赖 host 插件：只 import Node 内置能力，不需要任何 Harness 包。
 #
-# 生效方式：装载本 bundle 后**需重启 DSH**（bundle 列表与 node_modules 在进程启动时
-# 确定）。之后本文件与灵魂文件的改动都由 loader / mtime 缓存实时生效，无需再重启。
+# 效果：装载本 bundle 后，模型的表达风格（自称、语气、称呼、措辞）保持为 Fairy 设定，
+# 而工具调用规范、安全边界、权限与审批规则、工作区指令全部照常生效。
+#
+# 生效方式：**需重启 DSH**（bundle 列表与 node_modules 在进程启动时确定）。之后本文件
+# 与灵魂文件的改动都由 loader / mtime 缓存实时生效，无需再重启。
 - insert:
     - id: fairy-soul
       name: 'dsh-fairy-soul'
       config:
         # 总开关。改成 false 后下一次组装请求的系统提示词就恢复原样（零 token 开销）。
         enabled: true
-        # 灵魂文件路径。`~` 展开为当前用户主目录；相对路径锚定 $DSH_HOME。
-        # 想让风格跟随某个工作区里那份文件，就把这里改成它的绝对路径，例如：
-        #   soulPath: 'C:\Users\91533\Desktop\Fairy插件\FairySOUL.md'
-        # 读不到时会回落到插件包内的 soul.default.md，并在宿主日志里留一条 warn。
-        soulPath: '~/.dsh/FairySOUL.md'
+        # 灵魂文件路径。**留空 = 使用随包发布的 FairySOUL.md**（默认，推荐）。
+        # 该文件相对包根解析，所以插件装到哪都自洽，也不需要任何逐机配置。
+        #
+        # 只有想用随包那份**之外**的人格文件时才填这里：
+        #   ~ 展开为用户主目录；相对路径锚定 $DSH_HOME；也可写绝对路径。
+        #   该路径读不到时会自动回落到随包那份，人格不会消失。
+        soulPath: ''
         # 注入语言，同时决定划界声明与 Continuity 标注的语种：zh | en。
         language: zh
         # 是否给 Continuity 小节插入归属标注（说明它是长期协作约定、不是说话风格条目）。
