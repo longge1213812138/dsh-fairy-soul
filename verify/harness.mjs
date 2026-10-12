@@ -250,11 +250,17 @@ console.log('\n脱离开发工作区（复制到别处后必须照常工作）')
     assert.ok(!message.includes(PACKAGE_ROOT), '不应再引用原工作区路径')
   })
 
-  check('副本不引用任何硬编码的开发者绝对路径', () => {
+  check('副本不引用任何硬编码的绝对路径', () => {
+    // 不写死具体用户名：任何人都该能跑这条检查。
+    const absolute = /[A-Za-z]:[\\/]{1,2}[^\\/\s'"]+[\\/]{1,2}[^\\/\s'"]+/
     for (const file of ['index.js', 'lib/config.js', 'lib/soul.js']) {
       const text = readFileSync(join(detachedRoot, file), 'utf8')
-      if (/91533|Desktop[\\/]Fairy/i.test(text)) {
-        throw new Error(`${file} 里残留硬编码的开发者路径`)
+      const code = text
+        .split(/\r?\n/)
+        .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+        .join('\n')
+      if (absolute.test(code)) {
+        throw new Error(`${file} 里残留硬编码的绝对路径`)
       }
     }
   })

@@ -126,6 +126,8 @@ check('默认配置不引用任何绝对路径（否则别人装了会指向不�
 })
 check('运行时源码不含硬编码的开发者路径', () => {
   const offenders = []
+  // 匹配"任何机器上的绝对路径字面量"，因此不依赖开发者的用户名。
+  const absolute = /[A-Za-z]:[\\/]{1,2}[^\\/\s'"]+[\\/]{1,2}[^\\/\s'"]+/
   for (const file of ['index.js', 'lib/config.js', 'lib/soul.js', 'cordis.patch.yml']) {
     const text = readFileSync(join(PACKAGE_ROOT, file), 'utf8')
     // 只检查会被执行的代码与生效的配置；注释里的示例路径不去管。
@@ -133,9 +135,9 @@ check('运行时源码不含硬编码的开发者路径', () => {
       .split(/\r?\n/)
       .filter((line) => !/^\s*(#|\/\/|\*|\/\*)/.test(line))
       .join('\n')
-    if (/91533|[A-Za-z]:[\\/]Users[\\/]/i.test(code)) offenders.push(file)
+    if (absolute.test(code)) offenders.push(file)
   }
-  if (offenders.length > 0) throw new Error(`残留开发者绝对路径：${offenders.join(', ')}`)
+  if (offenders.length > 0) throw new Error(`残留硬编码绝对路径：${offenders.join(', ')}`)
   return 'index.js / lib/*.js / cordis.patch.yml 均干净'
 })
 
@@ -210,9 +212,9 @@ if (patchText === undefined) {
     if (!patchText.includes(PACKAGE_NAME)) throw new Error(`patch 层里没有 ${PACKAGE_NAME}`)
     return '已声明'
   })
-  check('profile 的 soulPath 未写死开发机绝对路径', () => {
-    if (configuredSoul !== undefined && /91533|Desktop/i.test(configuredSoul)) {
-      throw new Error(`soulPath 写死了开发机路径：${configuredSoul} —— 换机/删工作区后会失效`)
+  check('profile 的 soulPath 未写死某台机器的绝对路径', () => {
+    if (configuredSoul !== undefined && isAbsolute(configuredSoul)) {
+      throw new Error(`soulPath 写死了绝对路径：${configuredSoul} —— 换机/删工作区后会失效`)
     }
     return configuredSoul === '' || configuredSoul === undefined
       ? '留空 = 使用随包 FairySOUL.md（推荐）'
